@@ -53,6 +53,18 @@ function(req, res) {
   res.render('index');
 });
 
+app.get('/login',
+function(req, res) {
+  //if authenticated
+  res.render('login');
+});
+
+app.get('/signup',
+function(req, res) {
+  //if authenticated
+  res.render('signup');
+});
+
 app.get('/links',
 function(req, res) {
   Links.reset().fetch().then(function(links) {
@@ -94,6 +106,31 @@ function(req, res) {
   });
 });
 
+app.post('/signup', function(req) {
+  var formData = "";
+  console.log(req.body);
+  var credentials = {};
+  credentials.username = req.body.username;
+  credentials.password = req.body.password;
+
+  console.log('Credentials: ',credentials);
+  db.knex('users').insert({
+    username: credentials.username,
+    password: bcrypt.hashSync(credentials.password),
+    created_at: Date.now(),
+    updated_at: Date.now()}).then(function(stuff) {
+      console.log(stuff);
+      console.log('Hi.  You now exist in our database.');
+      db.knex.raw('select * from users where id = ?', [16]).then(function(resp) {
+        console.log('select response for this user',resp);
+      });
+
+    });
+
+
+
+});
+
 app.post('/login', function(req) {
   var formData = "";
   console.log(req.body);
@@ -104,7 +141,10 @@ app.post('/login', function(req) {
   console.log('Credentials: ',credentials);
   db.knex('users').where({
     username: credentials.username,
-    password: credentials.password});
+    password: bcrypt.hashSync(credentials.password)}).then(function() {
+      console.log('Hi.  You are authentic.');
+
+    });
 
 
   // req.on('data', function(chunk){
