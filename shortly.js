@@ -4,7 +4,9 @@ var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var session = require('express-session');
 var querystring = require('querystring');
-var bcrypt = require('bcrypt');
+var bcrypt = require('bcrypt-nodejs');
+
+
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -28,12 +30,14 @@ app.use(session({secret: 'nyan cat'}));
 
 app.use('/create', function(req, res, next){
   var sessionID = querystring.parse(req.headers.cookie)['connect.sid'] || req.sessionID;
+
+  console.log(req.sessionID);
   console.log(store);
   if (store.hasOwnProperty(sessionID)){
     console.log("Already authenticated")
     next();
   } else {
-    console.log('Not authenticated');
+    console.log('Hi. Not authenticated');
     res.render('login');
   }
 });
@@ -90,18 +94,33 @@ function(req, res) {
   });
 });
 
-app.post('/login', function(req, res) {
+app.post('/login', function(req) {
   var formData = "";
-  request.on('data', function(chunk){
-    formData += chunk;
-  });
-  request.on('end', function(){
-    var credentials = querystring.parse(formData);
-    db.knex(users).where({
-      username: credentials.username,
-      password: magicBCrypypHash(credentials.password)
-    });
-  });
+  console.log(req.body);
+  var credentials = {};
+  credentials.username = req.body.username;
+  credentials.password = req.body.password;
+
+  console.log('Credentials: ',credentials);
+  db.knex('users').where({
+    username: credentials.username,
+    password: credentials.password});
+
+
+  // req.on('data', function(chunk){
+  //   console.log('getting data');
+  //   formData += chunk;
+  //   console.log(formData);
+  // });
+
+  // req.on('end', function(){
+  //   // var credentials = querystring.parse(formData);
+  //   console.log('Credentials: ',credentials);
+  //   db.knex(users).where({
+  //     username: credentials.username,
+  //     password: magicBCrypypHash(credentials.password)
+  //   });
+  // });
 });
 /************************************************************/
 // Write your authentication routes here
