@@ -2,7 +2,9 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var session = require('express-session');
+var querystring = require('querystring');
+var bcrypt = require('bcrypt');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -10,6 +12,7 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var store = {};
 
 var app = express();
 
@@ -21,26 +24,39 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({secret: 'nyan cat'}));
 
+app.use('/create', function(req, res, next){
+  var sessionID = querystring.parse(req.headers.cookie)['connect.sid'] || req.sessionID;
+  console.log(store);
+  if (store.hasOwnProperty(sessionID)){
+    console.log("Already authenticated")
+    next();
+  } else {
+    console.log('Not authenticated');
+    res.render('login');
+  }
+});
 
-app.get('/', 
+app.get('/',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create',
 function(req, res) {
+  //if authenticated
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links',
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
+app.post('/links',
 function(req, res) {
   var uri = req.body.url;
 
@@ -74,9 +90,46 @@ function(req, res) {
   });
 });
 
+app.post('/login', function(req, res) {
+  var formData = "";
+  request.on('data', function(chunk){
+    formData += chunk;
+  });
+  request.on('end', function(){
+    var credentials = querystring.parse(formData);
+    db.knex(users).where({
+      username: credentials.username,
+      password: magicBCrypypHash(credentials.password)
+    });
+  });
+});
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+
+
+
+
+// /login
+//  // on success, go to links page
+//  // on error, issue app.get('/') with an error message (username/password combo is not found)
+//
+// /signup
+//  // provide username & password
+//  // 1. check if username already exists
+//      // if yes, check if password matches
+//        // if passsword matches, log them in, go to links page
+//      // if no, issue app.get('/') with an error message (username exists)
+//     2. if username does not exist
+//      // create an entry in database
+//      // encrypt password, etc.
+//     3. on success, go to links page (which will be blank)
+//
+//
+// /logout
+//
+
+
 
 
 
