@@ -18,28 +18,13 @@ var app = express();
 var validSessions = {};
 var SESSIONEXP = 3000000;
 
-var checkUser = function(req, res, next){
-  console.log(req.url);
-  console.log('user has requested a protected resource, "' + req.url + '"');
-  console.log('Authenticating');
-  console.log('ValidSessions Object: ',validSessions);
-  console.log('Session ID from request: ',req.sessionID);
+var userLoggedIn = function(req, res) {
+  console.log((validSessions.hasOwnProperty(req.sessionID) && Date.now() - validSessions[req.sessionID].authDate < SESSIONEXP));
+  return (validSessions.hasOwnProperty(req.sessionID) && Date.now() - validSessions[req.sessionID].authDate < SESSIONEXP);
+};
 
-  if (validSessions.hasOwnProperty(req.sessionID)){
-    console.log('Valid Session Exists');
-    if (Date.now() - validSessions[req.sessionID] < SESSIONEXP){
-      //USER HAS A VALID SESSION
-      console.log('User is within the window, advancing');
-      res.redirect('links');
-    } else {
-      //USER SESSION HAS EXPIRED
-      console.log('User session has expired');
-    }
-  }
-  console.log('User is not authenticated and is being redirected to /login');
-  //res.end('not authenticated');
-  res.redirect('login');
-  //redirect to login if not authenticated, otherwise next();
+var checkUser = function(req, res, next){
+  !userLoggedIn(req) ? res.redirect('/login') : next();
 };
 
 
@@ -54,10 +39,6 @@ app.use(express.static(__dirname + '/public'));
 app.use(cookieparser());
 app.use(session({secret: 'This should be working.'}));
 
-// app.use('/', checkUser);
-// app.use('/create', checkUser);
-// app.use('/links', checkUser);
-
 app.get('/create', checkUser, function(req, res) {
   console.log('user has requested to get "/create"');
   res.render('index');
@@ -66,17 +47,6 @@ app.get('/create', checkUser, function(req, res) {
 app.get('/', checkUser, function(req, res) {
   console.log('user has requested to get "/"');
   res.render('index');
-});
-
-app.get('/login', function(req, res) {
-  console.log('user has requested to get "/login"');
-  res.render('login');
-});
-
-app.get('/signup',
-function(req, res) {
-  console.log('user has requested to get "/signup"');
-  res.render('signup');
 });
 
 app.get('/links', checkUser, function(req, res) {
@@ -119,18 +89,32 @@ app.post('/links', checkUser, function(req, res) {
   });
 });
 
+app.get('/login', function(req, res) {
+  console.log('user has requested to get "/login"');
+  res.render('login');
+});
+
+app.get('/signup',
+function(req, res) {
+  console.log('user has requested to get "/signup"');
+  res.render('signup');
+});
+
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
 app.get('/logout', function(req, res) {
   console.log('user has requested to get "/logout"');
-  req.session.destroy(); // check syntax
-    res.redirect('/login');
+  req.session.destroy(function(err) {
+    console.log('Error: ',err);
+  }); // check syntax
+  console.log('User is logged out and we are making a new session for her');
+  res.redirect('/login');
 });
 
-app.post('/signup', function(req) {
+
+app.post('/signup', function(req, res) {
   console.log('user has requested to post to "/signup"');
-  // console.log(req.body);
   var credentials = {};
   credentials.username = req.body.username;
   credentials.password = req.body.password;
@@ -142,10 +126,24 @@ app.post('/signup', function(req) {
     created_at: Date.now(),
     updated_at: Date.now()}).then(function(rows) {
       console.log(rows);
+
+      validSessions[req.sessionID] = {
+        authDate: Date.now(),
+        userID: rows[0].id,
+        lastPage: []
+      };
+
+      console.log('Session post-signup authentication: ',validSessions[req.sessionID]);
+      res.redirect('/');
+
+/*
       console.log('Hi.  You now exist in our database.');
-      db.knex.raw('select * from users where id = ?', [16]).then(function(resp) {
-        console.log('select response for this user',resp);
+      db.knex.raw('select * from users where id = ?', [newID]).then(function(resp) {
       });
+*/
+    }).catch(function(error) {
+      console.log('Error: ',error);
+      res.redirect('/login');
     });
 });
 
@@ -174,14 +172,16 @@ app.post('/login', function(req, res) {
     // console.log('Hi. You are authentic.');
     validSessions[req.sessionID] = {
       authDate: Date.now(),
-      userID: 1, // get userID from database query
+      userID: rows[0].id, // get userID from database query
       lastPage: []
     };
     console.log('ValidSessions: ',validSessions, ' | ', req.sessionID);
-    res.redirect('/links');
+    res.redirect('/');
   })
   .catch(function(error) {
     console.log('Error: ',error);
+    console.log('Bad log in');
+    res.redirect('/login');
   });
 
 });
@@ -193,6 +193,7 @@ app.post('/login', function(req, res) {
 /************************************************************/
 
 app.get('/*', function(req, res) {
+  console.log('Junky URL');
   new Link({ code: req.params[0] }).fetch().then(function(link) {
     if (!link) {
       res.redirect('/');
